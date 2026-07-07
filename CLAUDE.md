@@ -62,6 +62,6 @@ A change is "done" when: it introduces no telemetry/tracking/manufacturer depend
 ## Reference documents in `/docs`
 - `ARCHITECTURE.md` — folder structure and pure-formula pattern.
 - `DUTY_CYCLE_MODEL.md` — duty cycle model (trapezoidal profile, %ED, starts/hour).
-- `formulas/Inventario_Formulas_CraneSizing.md` — every core formula, with its physics correction where applicable.
+- `formulas/FORMULA_INVENTORY.md` — every core formula, with its physics correction where applicable.
 
 **Never sacrifice privacy for convenience. Never sacrifice correctness for development speed.**
