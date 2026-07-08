@@ -10,9 +10,11 @@ independently of the implementation.
 
 from app.domain.calc.mechanics.travel import (
     RollingResistanceInput,
+    TravelDecelTorqueInput,
     TravelDynamicTorqueInput,
     TravelSpeedInput,
     TravelTorqueInput,
+    decel_torque,
     dynamic_torque,
     required_motor_speed,
     rolling_resistance_force,
@@ -106,3 +108,22 @@ def test_total_acceleration_torque():
     result = total_acceleration_torque(steady, dynamic)
     assert result.value_nm == 10.68
     assert result.formula_id == "MECH.TRAVEL.Tacc.v1"
+
+
+def test_decel_torque_non_regenerative():
+    """Tdyn(6.56) > Tss(4.12): still net-motoring during deceleration."""
+    result = decel_torque(
+        TravelDecelTorqueInput(steady_torque_nm=4.12, dynamic_torque_nm=6.56)
+    )
+    assert result.value_nm == 2.44
+    assert result.is_regenerative is False
+    assert result.formula_id == "MECH.TRAVEL.Tdec.v1"
+
+
+def test_decel_torque_regenerative():
+    """Tss(10.0) > Tdyn(4.0): deceleration returns energy (sign preserved)."""
+    result = decel_torque(
+        TravelDecelTorqueInput(steady_torque_nm=10.0, dynamic_torque_nm=4.0)
+    )
+    assert result.value_nm == -6.0
+    assert result.is_regenerative is True
