@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import {
+  calculateDutyCycle,
   calculateTravelRequirement,
+  type DutyCycleResult,
   type TravelRequirementInput,
   type TravelRequirementResult,
 } from './api'
@@ -36,11 +38,36 @@ const FIELDS: Array<{
   { key: 'rolling_coeff', label: 'Rolling resistance coefficient', unit: '', step: '0.001' },
 ]
 
+type DutyRegimeMode = 'duty_factor_pct' | 'starts_per_hour'
+
+interface CycleFormState {
+  distance_m: number
+  decel_time_s: string
+  regimeMode: DutyRegimeMode
+  regimeValue: number
+  cooling_factor: number
+  mechanism_group: string
+}
+
+const DEFAULT_CYCLE: CycleFormState = {
+  distance_m: 10,
+  decel_time_s: '',
+  regimeMode: 'duty_factor_pct',
+  regimeValue: 25,
+  cooling_factor: 0.5,
+  mechanism_group: '',
+}
+
 function App() {
   const [input, setInput] = useState<TravelRequirementInput>(DEFAULT_INPUT)
   const [result, setResult] = useState<TravelRequirementResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  const [cycle, setCycle] = useState<CycleFormState>(DEFAULT_CYCLE)
+  const [cycleResult, setCycleResult] = useState<DutyCycleResult | null>(null)
+  const [cycleError, setCycleError] = useState<string | null>(null)
+  const [cycleLoading, setCycleLoading] = useState(false)
 
   function handleChange(key: keyof TravelRequirementInput, value: string) {
     setInput((prev) => ({ ...prev, [key]: Number(value) }))
@@ -60,6 +87,32 @@ function App() {
       setLoading(false)
     }
   }
+
+  async function handleCycleSubmit(event: FormEvent) {
+    event.preventDefault()
+    setCycleLoading(true)
+    setCycleError(null)
+    try {
+      const data = await calculateDutyCycle({
+        ...input,
+        distance_m: cycle.distance_m,
+        decel_time_s: cycle.decel_time_s === '' ? null : Number(cycle.decel_time_s),
+        duty_factor_pct: cycle.regimeMode === 'duty_factor_pct' ? cycle.regimeValue : null,
+        starts_per_hour: cycle.regimeMode === 'starts_per_hour' ? cycle.regimeValue : null,
+        cooling_factor: cycle.cooling_factor,
+        mechanism_group: cycle.mechanism_group === '' ? null : cycle.mechanism_group,
+      })
+      setCycleResult(data)
+    } catch (err) {
+      setCycleResult(null)
+      setCycleError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setCycleLoading(false)
+    }
+  }
+
+  const isRegenerative =
+    cycleResult?.decel_torque.is_regenerative || cycleResult?.energy.has_regenerative_phase
 
   return (
     <main className="page">
@@ -131,6 +184,268 @@ function App() {
               ))}
             </tbody>
           </table>
+
+          <section className="cycle">
+            <h2>Duty cycle (Module 4 — CYCLE)</h2>
+            <p className="subtitle">
+              Now that the torque/speed requirement is known, describe the movement's
+              distance and service regime to get the phase profile, thermal RMS
+              torque, and estimated energy consumption.
+            </p>
+
+            <form onSubmit={handleCycleSubmit} className="form">
+              <label className="field">
+                <span>
+                  Distance <em>(m)</em>
+                </span>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={cycle.distance_m}
+                  onChange={(e) =>
+                    setCycle((prev) => ({ ...prev, distance_m: Number(e.target.value) }))
+                  }
+                  required
+                />
+              </label>
+
+              <label className="field">
+                <span>
+                  Deceleration ramp time <em>(s, optional — defaults to accel time)</em>
+                </span>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={cycle.decel_time_s}
+                  placeholder={String(input.accel_time_s)}
+                  onChange={(e) =>
+                    setCycle((prev) => ({ ...prev, decel_time_s: e.target.value }))
+                  }
+                />
+              </label>
+
+              <label className="field">
+                <span>Duty regime input</span>
+                <select
+                  value={cycle.regimeMode}
+                  onChange={(e) =>
+                    setCycle((prev) => ({
+                      ...prev,
+                      regimeMode: e.target.value as DutyRegimeMode,
+                    }))
+                  }
+                >
+                  <option value="duty_factor_pct">Target %ED</option>
+                  <option value="starts_per_hour">Starts per hour</option>
+                </select>
+              </label>
+
+              <label className="field">
+                <span>
+                  {cycle.regimeMode === 'duty_factor_pct'
+                    ? 'Target %ED'
+                    : 'Starts per hour'}{' '}
+                  <em>{cycle.regimeMode === 'duty_factor_pct' ? '(0-100)' : '(1/h)'}</em>
+                </span>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={cycle.regimeValue}
+                  onChange={(e) =>
+                    setCycle((prev) => ({ ...prev, regimeValue: Number(e.target.value) }))
+                  }
+                  required
+                />
+              </label>
+
+              <label className="field">
+                <span>
+                  Standstill cooling factor k_f <em>(0-1)</em>
+                </span>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="1"
+                  value={cycle.cooling_factor}
+                  onChange={(e) =>
+                    setCycle((prev) => ({
+                      ...prev,
+                      cooling_factor: Number(e.target.value),
+                    }))
+                  }
+                  required
+                />
+              </label>
+
+              <label className="field">
+                <span>
+                  Mechanism group <em>(optional, e.g. M5)</em>
+                </span>
+                <input
+                  type="text"
+                  value={cycle.mechanism_group}
+                  onChange={(e) =>
+                    setCycle((prev) => ({ ...prev, mechanism_group: e.target.value }))
+                  }
+                />
+              </label>
+
+              <button type="submit" disabled={cycleLoading}>
+                {cycleLoading ? 'Calculating…' : 'Calculate duty cycle'}
+              </button>
+            </form>
+          </section>
+
+          {cycleError && <p className="error">{cycleError}</p>}
+
+          {cycleResult && (
+            <section className="result">
+              <h3>Duty cycle result</h3>
+
+              {isRegenerative && (
+                <p className="warning">
+                  Regenerative operation detected: this movement returns energy to
+                  the drive during deceleration. Size a braking resistor
+                  accordingly.
+                </p>
+              )}
+
+              <div className="headline">
+                <div>
+                  <span className="value">
+                    {cycleResult.profile.is_triangular ? 'Triangular' : 'Trapezoidal'}
+                  </span>
+                  <span className="unit">motion profile</span>
+                </div>
+                <div>
+                  <span className="value">{cycleResult.regime.duty_factor_pct}</span>
+                  <span className="unit">%ED</span>
+                </div>
+                <div>
+                  <span className="value">{cycleResult.regime.starts_per_hour}</span>
+                  <span className="unit">starts/hour</span>
+                </div>
+                <div>
+                  <span className="value">{cycleResult.rms_torque.value}</span>
+                  <span className="unit">N·m — RMS torque</span>
+                </div>
+                <div>
+                  <span className="value">
+                    {(cycleResult.energy.energy_per_cycle_j / 3600).toFixed(3)}
+                  </span>
+                  <span className="unit">Wh — energy per cycle</span>
+                </div>
+              </div>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>Phase</th>
+                    <th>Time (s)</th>
+                    <th>Distance (m)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Acceleration</td>
+                    <td>{cycleResult.profile.accel_time_s}</td>
+                    <td>{cycleResult.profile.accel_distance_m}</td>
+                  </tr>
+                  <tr>
+                    <td>Constant speed</td>
+                    <td>{cycleResult.profile.const_time_s}</td>
+                    <td>{cycleResult.profile.const_distance_m}</td>
+                  </tr>
+                  <tr>
+                    <td>Deceleration</td>
+                    <td>{cycleResult.profile.decel_time_s}</td>
+                    <td>{cycleResult.profile.decel_distance_m}</td>
+                  </tr>
+                  <tr>
+                    <td>Rest (t_off)</td>
+                    <td>{cycleResult.regime.off_time_s}</td>
+                    <td>—</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>Quantity</th>
+                    <th>Value</th>
+                    <th>Formula ID</th>
+                    <th>Standard(s)</th>
+                    <th>Assumptions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Motion profile</td>
+                    <td>{cycleResult.profile.is_triangular ? 'triangular' : 'trapezoidal'}</td>
+                    <td>
+                      <code>{cycleResult.profile.formula_id}</code>
+                    </td>
+                    <td>{cycleResult.profile.standard_refs.join(', ')}</td>
+                    <td>{cycleResult.profile.assumptions.join('; ')}</td>
+                  </tr>
+                  <tr>
+                    <td>Duty regime</td>
+                    <td>
+                      {cycleResult.regime.duty_factor_pct}% ED, {cycleResult.regime.starts_per_hour}
+                      /h
+                    </td>
+                    <td>
+                      <code>{cycleResult.regime.formula_id}</code>
+                    </td>
+                    <td>{cycleResult.regime.standard_refs.join(', ')}</td>
+                    <td>{cycleResult.regime.assumptions.join('; ')}</td>
+                  </tr>
+                  <tr>
+                    <td>Deceleration torque</td>
+                    <td>
+                      {cycleResult.decel_torque.value_nm} N*m
+                      {cycleResult.decel_torque.is_regenerative && ' (regenerative)'}
+                    </td>
+                    <td>
+                      <code>{cycleResult.decel_torque.formula_id}</code>
+                    </td>
+                    <td>{cycleResult.decel_torque.standard_refs.join(', ')}</td>
+                    <td>{cycleResult.decel_torque.assumptions.join('; ')}</td>
+                  </tr>
+                  <tr>
+                    <td>RMS torque</td>
+                    <td>{cycleResult.rms_torque.value} N*m</td>
+                    <td>
+                      <code>{cycleResult.rms_torque.formula_id}</code>
+                    </td>
+                    <td>{cycleResult.rms_torque.standard_refs.join(', ')}</td>
+                    <td>{cycleResult.rms_torque.assumptions.join('; ')}</td>
+                  </tr>
+                  <tr>
+                    <td>Energy per cycle / hour</td>
+                    <td>
+                      {cycleResult.energy.energy_per_cycle_j} J /{' '}
+                      {cycleResult.energy.energy_per_hour_j} J
+                    </td>
+                    <td>
+                      <code>{cycleResult.energy.formula_id}</code>
+                    </td>
+                    <td>{cycleResult.energy.standard_refs.join(', ')}</td>
+                    <td>{cycleResult.energy.assumptions.join('; ')}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {cycleResult.mechanism_group_check.mechanism_group && (
+                <p className="subtitle">
+                  Mechanism group {cycleResult.mechanism_group_check.mechanism_group}:{' '}
+                  {cycleResult.mechanism_group_check.note}
+                </p>
+              )}
+            </section>
+          )}
         </section>
       )}
     </main>
