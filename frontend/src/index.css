@@ -1,0 +1,126 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.5;
+}
+
+body {
+  margin: 0;
+  padding: 2rem;
+}
+
+.page {
+  max-width: 960px;
+  margin-inline: auto;
+}
+
+h1 {
+  margin-bottom: 0.25rem;
+}
+
+.subtitle {
+  color: #666;
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+}
+
+.form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  align-items: end;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+}
+
+.field em {
+  color: #888;
+  font-style: normal;
+}
+
+.field input {
+  padding: 0.4rem 0.5rem;
+  font-size: 1rem;
+}
+
+button {
+  grid-column: 1 / -1;
+  padding: 0.6rem 1rem;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.error {
+  color: #b91c1c;
+  font-weight: 600;
+  margin-top: 1rem;
+}
+
+.result {
+  margin-top: 2rem;
+}
+
+.headline {
+  display: flex;
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.headline .value {
+  display: block;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.headline .unit {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.85rem;
+}
+
+th,
+td {
+  border: 1px solid #ddd;
+  padding: 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: #f5f5f5;
+}
+
+code {
+  font-family: ui-monospace, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  th {
+    background: #222;
+  }
+
+  th,
+  td {
+    border-color: #444;
+  }
+
+  .subtitle,
+  .headline .unit {
+    color: #aaa;
+  }
+}
