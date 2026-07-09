@@ -104,6 +104,63 @@ export interface DutyCycleResult {
   mechanism_group_check: MechanismGroupCheck
 }
 
+export interface MotorCandidateInput {
+  rated_power_kw: number
+  rated_speed_rpm: number
+  rated_voltage_v: number
+  power_factor: number
+  efficiency: number
+  nameplate_frequency_hz: number
+  breakdown_torque_pu: number | null
+  breakdown_torque_nm: number | null
+  max_mechanical_torque_pu: number | null
+  max_mechanical_torque_nm: number | null
+  no_load_current_a: number | null
+  rotor_inertia_kgm2: number
+}
+
+export interface DriveCandidateInput {
+  rated_current_a: number
+  overload_factor: number
+  overload_duration_s: number
+  rated_voltage_v: number
+}
+
+export interface ValidateCandidateInput extends DutyCycleInput {
+  motor: MotorCandidateInput
+  motor_target_frequency_hz: number
+  drive: DriveCandidateInput | null
+}
+
+export interface ConditionResult {
+  label: string
+  verdict: 'pass' | 'fail'
+  required_value: number
+  available_value: number
+  margin: number
+  formula_id: string
+  assumptions: string[]
+  standard_refs: string[]
+}
+
+export interface ResolvedMotor {
+  rated_torque_nm: number
+  rated_speed_rpm: number
+  rated_current_a: number
+  breakdown_torque_nm: number
+  max_mechanical_torque_nm: number
+}
+
+export interface ValidateCandidateResult {
+  requirement: DutyCycleResult
+  resolved_motor: ResolvedMotor
+  motor_conditions: ConditionResult[]
+  motor_passed: boolean
+  drive_conditions: ConditionResult[] | null
+  drive_passed: boolean | null
+  rms_current_a: number | null
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 
 async function postJson<TResult>(path: string, body: unknown): Promise<TResult> {
@@ -129,4 +186,10 @@ export function calculateTravelRequirement(
 
 export function calculateDutyCycle(input: DutyCycleInput): Promise<DutyCycleResult> {
   return postJson<DutyCycleResult>('/api/calc/duty-cycle', input)
+}
+
+export function validateCandidate(
+  input: ValidateCandidateInput,
+): Promise<ValidateCandidateResult> {
+  return postJson<ValidateCandidateResult>('/api/calc/validate-candidate', input)
 }
