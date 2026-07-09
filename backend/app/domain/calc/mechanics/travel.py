@@ -188,3 +188,43 @@ def total_acceleration_torque(
         assumptions=("Sizing torque = steady-state + dynamic torque",),
         standard_refs=_TRAVEL_STANDARD_REFS,
     )
+
+
+@dataclass(frozen=True)
+class TravelDecelTorqueInput:
+    steady_torque_nm: float
+    dynamic_torque_nm: float
+
+
+@dataclass(frozen=True)
+class TravelDecelTorqueResult:
+    value_nm: float
+    is_regenerative: bool
+    formula_id: str
+    assumptions: tuple[str, ...]
+    standard_refs: tuple[str, ...]
+
+
+@register_formula(
+    "MECH.TRAVEL.Tdec.v1",
+    standard_refs=_TRAVEL_STANDARD_REFS,
+    description="Deceleration torque for a travel mechanism; negative indicates regenerative braking.",
+)
+def decel_torque(inp: TravelDecelTorqueInput) -> TravelDecelTorqueResult:
+    """MECH.TRAVEL.Tdec.v1 — Deceleration torque = Tdyn - Tss.
+
+    May be negative: this indicates the mechanism returns energy while
+    decelerating (regenerative braking), which sizes the braking resistor.
+    The sign is preserved — never take abs() (DUTY_CYCLE_MODEL.md section 5).
+    """
+    tdec = inp.dynamic_torque_nm - inp.steady_torque_nm
+    return TravelDecelTorqueResult(
+        value_nm=round(tdec, 2),
+        is_regenerative=tdec < 0,
+        formula_id="MECH.TRAVEL.Tdec.v1",
+        assumptions=(
+            "Tdec = Tdyn - Tss",
+            "Negative value indicates regenerative braking; sign preserved",
+        ),
+        standard_refs=_TRAVEL_STANDARD_REFS,
+    )

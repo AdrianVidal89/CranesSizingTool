@@ -50,6 +50,8 @@ class FormulaOutput:
 class TravelRequirementResult:
     required_torque_nm: float
     required_speed_rpm: float
+    steady_torque_nm: float
+    dynamic_torque_nm: float
     components: tuple[FormulaOutput, ...]
 
 
@@ -143,5 +145,7 @@ class CalculateTravelRequirement:
         return TravelRequirementResult(
             required_torque_nm=acceleration.value_nm,
             required_speed_rpm=speed.value_rpm,
+            steady_torque_nm=steady.value_nm,
+            dynamic_torque_nm=dynamic.value_nm,
             components=components,
         )

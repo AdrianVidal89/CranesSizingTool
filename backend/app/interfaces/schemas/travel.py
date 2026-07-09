@@ -36,4 +36,6 @@ class FormulaOutputSchema(BaseModel):
 class TravelRequirementResponseSchema(BaseModel):
     required_torque_nm: float
     required_speed_rpm: float
+    steady_torque_nm: float
+    dynamic_torque_nm: float
     components: tuple[FormulaOutputSchema, ...]
