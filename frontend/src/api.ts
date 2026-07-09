@@ -193,3 +193,147 @@ export function validateCandidate(
 ): Promise<ValidateCandidateResult> {
   return postJson<ValidateCandidateResult>('/api/calc/validate-candidate', input)
 }
+
+// --- Auth, projects, saved calculation runs, and reports --------------
+// These endpoints are cookie-authenticated: every call includes
+// credentials, and every mutating (POST) call carries the CSRF token read
+// from the non-HttpOnly csrf_token cookie (double-submit pattern).
+
+export interface AuthUser {
+  id: string
+  email: string
+}
+
+export interface Project {
+  id: string
+  name: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CalculationRunSummary {
+  id: string
+  formula_ids: string[]
+  created_at: string
+}
+
+export interface SaveCalculationRunInput extends ValidateCandidateInput {
+  project_id: string | null
+  new_project_name: string | null
+  crane_configuration_name: string
+  movement_kind: 'travel' | 'hoist'
+  movement_name: string
+}
+
+export interface SavedCalculationRun {
+  id: string
+  formula_ids: string[]
+  created_at: string
+}
+
+export interface ReportMeta {
+  id: string
+  calculation_run_id: string
+  generated_at: string
+}
+
+function getCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`))
+  return match ? decodeURIComponent(match[1]) : null
+}
+
+export function getCsrfToken(): string | null {
+  return getCookie('csrf_token')
+}
+
+async function authFetch<TResult>(
+  path: string,
+  init: RequestInit & { csrf?: boolean } = {},
+): Promise<TResult> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(init.headers as Record<string, string> | undefined) }
+  if (init.csrf) {
+    const token = getCsrfToken()
+    if (token) headers['X-CSRF-Token'] = token
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    credentials: 'include',
+    headers,
+  })
+
+  if (!response.ok) {
+    const detail = await response.text()
+    throw new Error(`Request failed (${response.status}): ${detail}`)
+  }
+
+  if (response.status === 204) return undefined as TResult
+  return response.json() as Promise<TResult>
+}
+
+export function registerUser(email: string, password: string): Promise<AuthUser> {
+  return authFetch<AuthUser>('/api/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  })
+}
+
+export function loginUser(email: string, password: string): Promise<AuthUser> {
+  return authFetch<AuthUser>('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  })
+}
+
+export function logoutUser(): Promise<void> {
+  return authFetch<void>('/api/auth/logout', { method: 'POST', csrf: true })
+}
+
+export async function fetchCurrentUser(): Promise<AuthUser | null> {
+  const response = await fetch(`${API_BASE_URL}/api/auth/me`, { credentials: 'include' })
+  if (response.status === 401) return null
+  if (!response.ok) throw new Error(`Failed to fetch current user (${response.status})`)
+  return response.json() as Promise<AuthUser>
+}
+
+export function createProject(name: string): Promise<Project> {
+  return authFetch<Project>('/api/projects', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+    csrf: true,
+  })
+}
+
+export function listProjects(): Promise<Project[]> {
+  return authFetch<Project[]>('/api/projects')
+}
+
+export function saveCalculationRun(
+  input: SaveCalculationRunInput,
+): Promise<SavedCalculationRun> {
+  return authFetch<SavedCalculationRun>('/api/calculation-runs', {
+    method: 'POST',
+    body: JSON.stringify(input),
+    csrf: true,
+  })
+}
+
+export function listCalculationRuns(): Promise<CalculationRunSummary[]> {
+  return authFetch<CalculationRunSummary[]>('/api/calculation-runs')
+}
+
+export function generateReport(calculationRunId: string): Promise<ReportMeta> {
+  return authFetch<ReportMeta>('/api/reports', {
+    method: 'POST',
+    body: JSON.stringify({ calculation_run_id: calculationRunId }),
+    csrf: true,
+  })
+}
+
+export async function downloadReportPdf(reportId: string): Promise<Blob> {
+  const response = await fetch(`${API_BASE_URL}/api/reports/${reportId}/pdf`, {
+    credentials: 'include',
+  })
+  if (!response.ok) throw new Error(`Failed to download report (${response.status})`)
+  return response.blob()
+}

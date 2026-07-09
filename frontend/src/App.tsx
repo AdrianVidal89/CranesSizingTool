@@ -1,12 +1,19 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
+import SavePanel from './SavePanel'
 import {
   calculateDutyCycle,
   calculateTravelRequirement,
+  fetchCurrentUser,
+  loginUser,
+  logoutUser,
+  registerUser,
   validateCandidate,
+  type AuthUser,
   type DutyCycleResult,
   type MotorCandidateInput,
   type TravelRequirementInput,
   type TravelRequirementResult,
+  type ValidateCandidateInput,
   type ValidateCandidateResult,
 } from './api'
 
@@ -125,6 +132,48 @@ function App() {
   const [validation, setValidation] = useState<ValidateCandidateResult | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
   const [validationLoading, setValidationLoading] = useState(false)
+  const [lastValidatedInput, setLastValidatedInput] = useState<ValidateCandidateInput | null>(
+    null,
+  )
+
+  const [user, setUser] = useState<AuthUser | null>(null)
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
+  const [authEmail, setAuthEmail] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  const [authError, setAuthError] = useState<string | null>(null)
+  const [authLoading, setAuthLoading] = useState(false)
+
+  useEffect(() => {
+    fetchCurrentUser()
+      .then(setUser)
+      .catch(() => setUser(null))
+  }, [])
+
+  async function handleAuthSubmit(event: FormEvent) {
+    event.preventDefault()
+    setAuthLoading(true)
+    setAuthError(null)
+    try {
+      if (authMode === 'register') {
+        await registerUser(authEmail, authPassword)
+      }
+      const loggedIn = await loginUser(authEmail, authPassword)
+      setUser(loggedIn)
+      setAuthPassword('')
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  async function handleLogout() {
+    try {
+      await logoutUser()
+    } finally {
+      setUser(null)
+    }
+  }
 
   function handleChange(key: keyof TravelRequirementInput, value: string) {
     setInput((prev) => ({ ...prev, [key]: Number(value) }))
@@ -195,7 +244,7 @@ function App() {
           motor.no_load_current_a === '' ? null : Number(motor.no_load_current_a),
         rotor_inertia_kgm2: motor.rotor_inertia_kgm2,
       }
-      const data = await validateCandidate({
+      const candidatePayload: ValidateCandidateInput = {
         ...input,
         distance_m: cycle.distance_m,
         decel_time_s: cycle.decel_time_s === '' ? null : Number(cycle.decel_time_s),
@@ -213,8 +262,10 @@ function App() {
               rated_voltage_v: drive.rated_voltage_v,
             }
           : null,
-      })
+      }
+      const data = await validateCandidate(candidatePayload)
       setValidation(data)
+      setLastValidatedInput(candidatePayload)
     } catch (err) {
       setValidation(null)
       setValidationError(err instanceof Error ? err.message : 'Unknown error')
@@ -225,6 +276,53 @@ function App() {
 
   return (
     <main className="page">
+      <div className="auth-bar">
+        {user ? (
+          <p className="subtitle">
+            Logged in as {user.email}{' '}
+            <button type="button" onClick={handleLogout}>
+              Log out
+            </button>
+          </p>
+        ) : (
+          <form onSubmit={handleAuthSubmit} className="form auth-form">
+            <label className="field">
+              <span>Email</span>
+              <input
+                type="email"
+                value={authEmail}
+                onChange={(e) => setAuthEmail(e.target.value)}
+                required
+              />
+            </label>
+            <label className="field">
+              <span>Password</span>
+              <input
+                type="password"
+                minLength={8}
+                value={authPassword}
+                onChange={(e) => setAuthPassword(e.target.value)}
+                required
+              />
+            </label>
+            <label className="field">
+              <span>&nbsp;</span>
+              <select
+                value={authMode}
+                onChange={(e) => setAuthMode(e.target.value as 'login' | 'register')}
+              >
+                <option value="login">Log in</option>
+                <option value="register">Register</option>
+              </select>
+            </label>
+            <button type="submit" disabled={authLoading}>
+              {authLoading ? 'Please wait…' : authMode === 'login' ? 'Log in' : 'Register'}
+            </button>
+          </form>
+        )}
+        {authError && <p className="error">{authError}</p>}
+      </div>
+
       <h1>Cranes Sizing Platform</h1>
       <p className="subtitle">
         Travel requirement (Module 1 — MECH.TRAVEL). Manufacturer-agnostic: this
@@ -917,6 +1015,8 @@ function App() {
           )}
         </section>
       )}
+
+      <SavePanel user={user} calculationInput={lastValidatedInput} />
     </main>
   )
 }
