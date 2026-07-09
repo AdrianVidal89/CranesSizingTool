@@ -84,3 +84,70 @@ def test_calculate_duty_cycle_triangular_profile():
     assert response.status_code == 200
     body = response.json()
     assert body["profile"]["is_triangular"] is True
+
+
+VALIDATE_CANDIDATE_PAYLOAD = {
+    **DUTY_CYCLE_PAYLOAD,
+    "motor": {
+        "rated_power_kw": 2.2,
+        "rated_speed_rpm": 750.0,
+        "rated_voltage_v": 400.0,
+        "power_factor": 0.85,
+        "efficiency": 0.87,
+        "nameplate_frequency_hz": 50.0,
+        "breakdown_torque_pu": 2.5,
+        "max_mechanical_torque_pu": 3.0,
+        "no_load_current_a": 1.5,
+    },
+    "motor_target_frequency_hz": 50.0,
+    "drive": {
+        "rated_current_a": 6.0,
+        "overload_factor": 1.6,
+        "overload_duration_s": 60.0,
+        "rated_voltage_v": 400.0,
+    },
+}
+
+
+def test_validate_candidate_all_pass():
+    response = client.post("/api/calc/validate-candidate", json=VALIDATE_CANDIDATE_PAYLOAD)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["motor_passed"] is True
+    assert len(body["motor_conditions"]) == 4
+    assert body["drive_passed"] is True
+    assert len(body["drive_conditions"]) == 3
+    assert body["rms_current_a"] == 2.1014
+    assert body["requirement"]["required_torque_nm"] == 10.68
+
+
+def test_validate_candidate_without_drive():
+    payload = {k: v for k, v in VALIDATE_CANDIDATE_PAYLOAD.items() if k != "drive"}
+    response = client.post("/api/calc/validate-candidate", json=payload)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["drive_conditions"] is None
+    assert body["drive_passed"] is None
+    assert body["rms_current_a"] is None
+
+
+def test_validate_candidate_rejects_ambiguous_torque_fields():
+    payload = {
+        **VALIDATE_CANDIDATE_PAYLOAD,
+        "motor": {**VALIDATE_CANDIDATE_PAYLOAD["motor"], "breakdown_torque_nm": 70.0},
+    }
+    response = client.post("/api/calc/validate-candidate", json=payload)
+    assert response.status_code == 422
+
+
+def test_validate_candidate_fails_on_speed_band():
+    payload = {
+        **VALIDATE_CANDIDATE_PAYLOAD,
+        "motor": {**VALIDATE_CANDIDATE_PAYLOAD["motor"], "rated_speed_rpm": 1450.0},
+    }
+    response = client.post("/api/calc/validate-candidate", json=payload)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["motor_passed"] is False
+    speed = next(c for c in body["motor_conditions"] if c["formula_id"] == "MOTOR.VALIDATE.Speed.v1")
+    assert speed["verdict"] == "fail"

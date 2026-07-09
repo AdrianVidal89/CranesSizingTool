@@ -2,9 +2,12 @@ import { useState, type FormEvent } from 'react'
 import {
   calculateDutyCycle,
   calculateTravelRequirement,
+  validateCandidate,
   type DutyCycleResult,
+  type MotorCandidateInput,
   type TravelRequirementInput,
   type TravelRequirementResult,
+  type ValidateCandidateResult,
 } from './api'
 
 const DEFAULT_INPUT: TravelRequirementInput = {
@@ -58,6 +61,54 @@ const DEFAULT_CYCLE: CycleFormState = {
   mechanism_group: '',
 }
 
+type TorqueInputMode = 'pu' | 'nm'
+
+interface MotorFormState {
+  rated_power_kw: number
+  rated_speed_rpm: number
+  rated_voltage_v: number
+  power_factor: number
+  efficiency: number
+  nameplate_frequency_hz: number
+  motor_target_frequency_hz: number
+  torqueInputMode: TorqueInputMode
+  breakdown_torque_value: number
+  max_mechanical_torque_value: number
+  no_load_current_a: string
+  rotor_inertia_kgm2: number
+}
+
+const DEFAULT_MOTOR: MotorFormState = {
+  rated_power_kw: 2.2,
+  rated_speed_rpm: 750,
+  rated_voltage_v: 400,
+  power_factor: 0.85,
+  efficiency: 0.87,
+  nameplate_frequency_hz: 50,
+  motor_target_frequency_hz: 50,
+  torqueInputMode: 'pu',
+  breakdown_torque_value: 2.5,
+  max_mechanical_torque_value: 3.0,
+  no_load_current_a: '',
+  rotor_inertia_kgm2: 0,
+}
+
+interface DriveFormState {
+  enabled: boolean
+  rated_current_a: number
+  overload_factor: number
+  overload_duration_s: number
+  rated_voltage_v: number
+}
+
+const DEFAULT_DRIVE: DriveFormState = {
+  enabled: true,
+  rated_current_a: 6.0,
+  overload_factor: 1.6,
+  overload_duration_s: 60,
+  rated_voltage_v: 400,
+}
+
 function App() {
   const [input, setInput] = useState<TravelRequirementInput>(DEFAULT_INPUT)
   const [result, setResult] = useState<TravelRequirementResult | null>(null)
@@ -68,6 +119,12 @@ function App() {
   const [cycleResult, setCycleResult] = useState<DutyCycleResult | null>(null)
   const [cycleError, setCycleError] = useState<string | null>(null)
   const [cycleLoading, setCycleLoading] = useState(false)
+
+  const [motor, setMotor] = useState<MotorFormState>(DEFAULT_MOTOR)
+  const [drive, setDrive] = useState<DriveFormState>(DEFAULT_DRIVE)
+  const [validation, setValidation] = useState<ValidateCandidateResult | null>(null)
+  const [validationError, setValidationError] = useState<string | null>(null)
+  const [validationLoading, setValidationLoading] = useState(false)
 
   function handleChange(key: keyof TravelRequirementInput, value: string) {
     setInput((prev) => ({ ...prev, [key]: Number(value) }))
@@ -113,6 +170,58 @@ function App() {
 
   const isRegenerative =
     cycleResult?.decel_torque.is_regenerative || cycleResult?.energy.has_regenerative_phase
+
+  async function handleValidateSubmit(event: FormEvent) {
+    event.preventDefault()
+    setValidationLoading(true)
+    setValidationError(null)
+    try {
+      const motorPayload: MotorCandidateInput = {
+        rated_power_kw: motor.rated_power_kw,
+        rated_speed_rpm: motor.rated_speed_rpm,
+        rated_voltage_v: motor.rated_voltage_v,
+        power_factor: motor.power_factor,
+        efficiency: motor.efficiency,
+        nameplate_frequency_hz: motor.nameplate_frequency_hz,
+        breakdown_torque_pu:
+          motor.torqueInputMode === 'pu' ? motor.breakdown_torque_value : null,
+        breakdown_torque_nm:
+          motor.torqueInputMode === 'nm' ? motor.breakdown_torque_value : null,
+        max_mechanical_torque_pu:
+          motor.torqueInputMode === 'pu' ? motor.max_mechanical_torque_value : null,
+        max_mechanical_torque_nm:
+          motor.torqueInputMode === 'nm' ? motor.max_mechanical_torque_value : null,
+        no_load_current_a:
+          motor.no_load_current_a === '' ? null : Number(motor.no_load_current_a),
+        rotor_inertia_kgm2: motor.rotor_inertia_kgm2,
+      }
+      const data = await validateCandidate({
+        ...input,
+        distance_m: cycle.distance_m,
+        decel_time_s: cycle.decel_time_s === '' ? null : Number(cycle.decel_time_s),
+        duty_factor_pct: cycle.regimeMode === 'duty_factor_pct' ? cycle.regimeValue : null,
+        starts_per_hour: cycle.regimeMode === 'starts_per_hour' ? cycle.regimeValue : null,
+        cooling_factor: cycle.cooling_factor,
+        mechanism_group: cycle.mechanism_group === '' ? null : cycle.mechanism_group,
+        motor: motorPayload,
+        motor_target_frequency_hz: motor.motor_target_frequency_hz,
+        drive: drive.enabled
+          ? {
+              rated_current_a: drive.rated_current_a,
+              overload_factor: drive.overload_factor,
+              overload_duration_s: drive.overload_duration_s,
+              rated_voltage_v: drive.rated_voltage_v,
+            }
+          : null,
+      })
+      setValidation(data)
+    } catch (err) {
+      setValidation(null)
+      setValidationError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setValidationLoading(false)
+    }
+  }
 
   return (
     <main className="page">
@@ -300,6 +409,7 @@ function App() {
           {cycleError && <p className="error">{cycleError}</p>}
 
           {cycleResult && (
+            <>
             <section className="result">
               <h3>Duty cycle result</h3>
 
@@ -445,6 +555,365 @@ function App() {
                 </p>
               )}
             </section>
+
+            <section className="candidate">
+              <h2>Candidate validation (Modules 5-6 — MOTOR / DRIVE)</h2>
+              <p className="subtitle">
+                Enter the nameplate data of a motor (and optionally a drive) you are
+                considering. <strong>The system validates the candidate you propose —
+                it never selects or recommends equipment from a catalog.</strong>
+              </p>
+
+              <form onSubmit={handleValidateSubmit} className="form">
+                <label className="field">
+                  <span>
+                    Rated power <em>(kW)</em>
+                  </span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={motor.rated_power_kw}
+                    onChange={(e) =>
+                      setMotor((prev) => ({ ...prev, rated_power_kw: Number(e.target.value) }))
+                    }
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span>
+                    Rated speed <em>(rpm)</em>
+                  </span>
+                  <input
+                    type="number"
+                    step="1"
+                    value={motor.rated_speed_rpm}
+                    onChange={(e) =>
+                      setMotor((prev) => ({ ...prev, rated_speed_rpm: Number(e.target.value) }))
+                    }
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span>
+                    Rated voltage <em>(V)</em>
+                  </span>
+                  <input
+                    type="number"
+                    step="1"
+                    value={motor.rated_voltage_v}
+                    onChange={(e) =>
+                      setMotor((prev) => ({ ...prev, rated_voltage_v: Number(e.target.value) }))
+                    }
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span>
+                    Power factor cos(phi) <em>(0-1)</em>
+                  </span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={motor.power_factor}
+                    onChange={(e) =>
+                      setMotor((prev) => ({ ...prev, power_factor: Number(e.target.value) }))
+                    }
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span>
+                    Efficiency <em>(0-1)</em>
+                  </span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={motor.efficiency}
+                    onChange={(e) =>
+                      setMotor((prev) => ({ ...prev, efficiency: Number(e.target.value) }))
+                    }
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span>
+                    Nameplate frequency <em>(Hz)</em>
+                  </span>
+                  <input
+                    type="number"
+                    step="1"
+                    value={motor.nameplate_frequency_hz}
+                    onChange={(e) =>
+                      setMotor((prev) => ({
+                        ...prev,
+                        nameplate_frequency_hz: Number(e.target.value),
+                      }))
+                    }
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span>
+                    Target mains frequency <em>(Hz)</em>
+                  </span>
+                  <input
+                    type="number"
+                    step="1"
+                    value={motor.motor_target_frequency_hz}
+                    onChange={(e) =>
+                      setMotor((prev) => ({
+                        ...prev,
+                        motor_target_frequency_hz: Number(e.target.value),
+                      }))
+                    }
+                    required
+                  />
+                </label>
+
+                <label className="field">
+                  <span>Breakdown / max mechanical torque input</span>
+                  <select
+                    value={motor.torqueInputMode}
+                    onChange={(e) =>
+                      setMotor((prev) => ({
+                        ...prev,
+                        torqueInputMode: e.target.value as TorqueInputMode,
+                      }))
+                    }
+                  >
+                    <option value="pu">Multiple of rated torque (pu)</option>
+                    <option value="nm">Absolute value (N*m)</option>
+                  </select>
+                </label>
+                <label className="field">
+                  <span>
+                    Breakdown torque{' '}
+                    <em>{motor.torqueInputMode === 'pu' ? '(x rated)' : '(N*m)'}</em>
+                  </span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={motor.breakdown_torque_value}
+                    onChange={(e) =>
+                      setMotor((prev) => ({
+                        ...prev,
+                        breakdown_torque_value: Number(e.target.value),
+                      }))
+                    }
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span>
+                    Max mechanical torque{' '}
+                    <em>{motor.torqueInputMode === 'pu' ? '(x rated)' : '(N*m)'}</em>
+                  </span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={motor.max_mechanical_torque_value}
+                    onChange={(e) =>
+                      setMotor((prev) => ({
+                        ...prev,
+                        max_mechanical_torque_value: Number(e.target.value),
+                      }))
+                    }
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span>
+                    No-load current I_0{' '}
+                    <em>(A, optional — estimated via sin(phi) if blank)</em>
+                  </span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={motor.no_load_current_a}
+                    onChange={(e) =>
+                      setMotor((prev) => ({ ...prev, no_load_current_a: e.target.value }))
+                    }
+                  />
+                </label>
+
+                <label className="field">
+                  <span>
+                    <input
+                      type="checkbox"
+                      checked={drive.enabled}
+                      onChange={(e) =>
+                        setDrive((prev) => ({ ...prev, enabled: e.target.checked }))
+                      }
+                    />{' '}
+                    Include a drive candidate
+                  </span>
+                </label>
+
+                {drive.enabled && (
+                  <>
+                    <label className="field">
+                      <span>
+                        Drive rated current <em>(A)</em>
+                      </span>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={drive.rated_current_a}
+                        onChange={(e) =>
+                          setDrive((prev) => ({
+                            ...prev,
+                            rated_current_a: Number(e.target.value),
+                          }))
+                        }
+                        required
+                      />
+                    </label>
+                    <label className="field">
+                      <span>
+                        Overload factor <em>(x rated)</em>
+                      </span>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={drive.overload_factor}
+                        onChange={(e) =>
+                          setDrive((prev) => ({
+                            ...prev,
+                            overload_factor: Number(e.target.value),
+                          }))
+                        }
+                        required
+                      />
+                    </label>
+                    <label className="field">
+                      <span>
+                        Overload duration <em>(s)</em>
+                      </span>
+                      <input
+                        type="number"
+                        step="1"
+                        value={drive.overload_duration_s}
+                        onChange={(e) =>
+                          setDrive((prev) => ({
+                            ...prev,
+                            overload_duration_s: Number(e.target.value),
+                          }))
+                        }
+                        required
+                      />
+                    </label>
+                    <label className="field">
+                      <span>
+                        Drive rated voltage <em>(V)</em>
+                      </span>
+                      <input
+                        type="number"
+                        step="1"
+                        value={drive.rated_voltage_v}
+                        onChange={(e) =>
+                          setDrive((prev) => ({
+                            ...prev,
+                            rated_voltage_v: Number(e.target.value),
+                          }))
+                        }
+                        required
+                      />
+                    </label>
+                  </>
+                )}
+
+                <button type="submit" disabled={validationLoading}>
+                  {validationLoading ? 'Validating…' : 'Validate candidate'}
+                </button>
+              </form>
+
+              {validationError && <p className="error">{validationError}</p>}
+
+              {validation && (
+                <section className="result">
+                  <h3>Validation result</h3>
+
+                  <p
+                    className={
+                      validation.motor_passed &&
+                      (validation.drive_passed === null || validation.drive_passed)
+                        ? 'verdict-banner pass'
+                        : 'verdict-banner fail'
+                    }
+                  >
+                    {validation.motor_passed &&
+                    (validation.drive_passed === null || validation.drive_passed)
+                      ? 'This candidate meets all validated conditions.'
+                      : 'This candidate does NOT meet all validated conditions.'}
+                  </p>
+
+                  <h4>Motor conditions</h4>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Condition</th>
+                        <th>Required</th>
+                        <th>Available</th>
+                        <th>Margin</th>
+                        <th>Verdict</th>
+                        <th>Formula ID</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {validation.motor_conditions.map((c) => (
+                        <tr key={c.formula_id}>
+                          <td>{c.label}</td>
+                          <td>{c.required_value}</td>
+                          <td>{c.available_value}</td>
+                          <td>{(c.margin * 100).toFixed(1)}%</td>
+                          <td>
+                            <span className={`verdict ${c.verdict}`}>{c.verdict}</span>
+                          </td>
+                          <td>
+                            <code>{c.formula_id}</code>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {validation.drive_conditions && (
+                    <>
+                      <h4>Drive conditions</h4>
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Condition</th>
+                            <th>Required</th>
+                            <th>Available</th>
+                            <th>Margin</th>
+                            <th>Verdict</th>
+                            <th>Formula ID</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {validation.drive_conditions.map((c) => (
+                            <tr key={c.formula_id}>
+                              <td>{c.label}</td>
+                              <td>{c.required_value}</td>
+                              <td>{c.available_value}</td>
+                              <td>{(c.margin * 100).toFixed(1)}%</td>
+                              <td>
+                                <span className={`verdict ${c.verdict}`}>{c.verdict}</span>
+                              </td>
+                              <td>
+                                <code>{c.formula_id}</code>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </>
+                  )}
+                </section>
+              )}
+            </section>
+            </>
           )}
         </section>
       )}
