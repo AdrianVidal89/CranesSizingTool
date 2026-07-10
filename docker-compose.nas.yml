@@ -1,0 +1,118 @@
+# LAN-only stack for a home/office NAS (e.g. QNAP Container Station).
+# Differs from docker-compose.prod.yml: no TLS/certbot (nothing here
+# assumes a public domain or forwarded router ports), a single published
+# HTTP port, and resource limits left as sane-but-adjustable defaults
+# since NAS hardware varies widely. See docs/NAS_DEPLOYMENT.md.
+#
+# Security still applied even without TLS: rate limiting, CSP and the
+# other security headers (nginx/nas/default.conf), Argon2 password
+# hashing, CSRF, per-owner data isolation, encryption at rest. The one
+# real trade-off from skipping TLS: session/CSRF cookies cannot carry
+# the `Secure` flag (browsers drop `Secure` cookies over plain HTTP), so
+# traffic — including the session cookie — is unencrypted on your LAN.
+# Acceptable on a trusted home/office network; if you don't consider
+# your LAN trusted, put this behind your NAS's own reverse proxy with
+# TLS and set SESSION_COOKIE_SECURE=true.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 768M
+
+  backend:
+    build:
+      context: ./backend
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "8000"
+    environment:
+      CORS_ALLOWED_ORIGINS: ${LAN_ORIGIN}
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}"
+      FIELD_ENCRYPTION_SECRET: ${FIELD_ENCRYPTION_SECRET}
+      SESSION_COOKIE_SECURE: "false"
+      SESSION_COOKIE_SAMESITE: "strict"
+      ENVIRONMENT: "production"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1024M
+
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      VITE_API_BASE_URL: ""
+    volumes:
+      - frontend_dist:/shared
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    # Build-only container (see frontend/Dockerfile) — exits once the
+    # static bundle is copied to the shared volume.
+
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      backend:
+        condition: service_started
+      frontend:
+        condition: service_completed_successfully
+    ports:
+      - "${NAS_HTTP_PORT:-8090}:80"
+    volumes:
+      - frontend_dist:/usr/share/nginx/html:ro
+      - ./nginx/nas/default.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+
+  backup:
+    image: postgres:16-alpine
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      PGHOST: db
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup.sh:/backup.sh:ro
+    entrypoint: ["sh", "/backup.sh"]
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 64M
+
+volumes:
+  frontend_dist:
+  db_data:

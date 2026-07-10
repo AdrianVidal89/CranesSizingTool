@@ -8,13 +8,16 @@ the duty cycle model, and
 [`docs/formulas/FORMULA_INVENTORY.md`](./docs/formulas/FORMULA_INVENTORY.md)
 for the full formula inventory.
 
-## Status: Phase 4 — persistence, basic auth, and PDF reports
+## Status: Phase 6 — hardened, deployable, and redesigned
 
 The full two-stage flow is implemented end to end: **requirement**
 (mechanics + duty cycle, Phases 1-2) → **candidate validation** (motor +
-drive, Phase 3) → **save + PDF report** (Phase 4). Basic login only (no
-roles/permissions); no production deployment tuning yet (see
-`docs/ARCHITECTURE.md` section 9 for the full build order).
+drive, Phase 3) → **save + PDF report** (Phase 4). Security hardening,
+production Docker packaging, and TLS/backups (Phase 5) are done — see
+[`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md) for an internet-facing VPS
+deployment or [`docs/NAS_DEPLOYMENT.md`](./docs/NAS_DEPLOYMENT.md) for a
+LAN-only NAS deployment. Basic login only (no roles/permissions) — see
+`docs/ARCHITECTURE.md` section 9 for the full build order.
 
 ## Run the preview with Docker Compose
 
@@ -29,6 +32,18 @@ This is the same setup you'd deploy on a small VPS. The Postgres
 credentials and `FIELD_ENCRYPTION_SECRET` in `docker-compose.yml` are
 clearly-labeled dev-only placeholders — override both for any real
 deployment.
+
+## Deploying it for real
+
+- **Internet-facing, own domain**: [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md)
+  + `docker-compose.prod.yml` — TLS via Let's Encrypt, rate limiting,
+  automated backups, sized for a 2 vCPU/4 GB VPS.
+- **LAN-only, e.g. a QNAP NAS**: [`docs/NAS_DEPLOYMENT.md`](./docs/NAS_DEPLOYMENT.md)
+  + `docker-compose.nas.yml` — same hardening minus TLS/Certbot (no
+  public domain needed), a single published HTTP port.
+
+Both are separate from the `docker-compose.yml` dev preview above (dev
+credentials, no TLS, no resource limits — local use only).
 
 ## Run without Docker (local development)
 
@@ -112,9 +127,10 @@ Docker Compose setup already sets this).
 
 Implemented: full mechanics (Modules 1-2), duty cycle (Module 4), motor and
 drive candidate validation (Modules 5-6), persistence with per-user
-isolation and encryption at rest, basic auth, and local PDF report
-generation — see `docs/formulas/FORMULA_INVENTORY.md` for the formula-level
-detail and corrections applied.
+isolation and encryption at rest, basic auth, local PDF report
+generation, production hardening (TLS, security headers, rate limiting,
+secrets/logging audit), and Docker packaging for both an internet-facing
+VPS and a LAN-only NAS — see `docs/formulas/FORMULA_INVENTORY.md` for the
+formula-level detail and corrections applied.
 
-Not yet implemented: advanced auth (roles/permissions, password reset),
-production deployment tuning (e.g. for Hetzner).
+Not yet implemented: advanced auth (roles/permissions, password reset).
