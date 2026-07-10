@@ -15,5 +15,8 @@ dist/
 .env
 .env.local
 
+# Local Postgres backup dumps (production backup service writes here)
+backups/
+
 # OS
 .DS_Store
