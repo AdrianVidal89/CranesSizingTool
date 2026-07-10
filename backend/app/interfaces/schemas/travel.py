@@ -2,26 +2,13 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+
+from app.interfaces.schemas.mechanics import MechanicsRequestFieldsSchema
 
 
-class TravelRequirementRequestSchema(BaseModel):
-    mass_dead_kg: float = Field(
-        ..., gt=0, description="Dead mass of the gantry/trolley mechanism, kg"
-    )
-    mass_load_kg: float = Field(..., ge=0, description="Mass of the load (SWL), kg")
-    mass_tool_kg: float = Field(..., ge=0, description="Mass of the tool/spreader, kg")
-    velocity_ms: float = Field(..., gt=0, description="Nominal travel speed, m/s")
-    accel_time_s: float = Field(..., gt=0, description="Acceleration ramp time, s")
-    wheel_diameter_m: float = Field(..., gt=0, description="Wheel diameter, m")
-    gear_ratio: float = Field(..., gt=0, description="Gearbox reduction ratio")
-    efficiency: float = Field(
-        ..., gt=0, le=1, description="Mechanical efficiency (gearbox + transmission)"
-    )
-    motors_count: int = Field(
-        ..., gt=0, description="Number of motors/drives for this movement"
-    )
-    rolling_coeff: float = Field(..., gt=0, description="Rolling resistance coefficient")
+class TravelRequirementRequestSchema(MechanicsRequestFieldsSchema):
+    pass
 
 
 class FormulaOutputSchema(BaseModel):

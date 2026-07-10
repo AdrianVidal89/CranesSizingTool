@@ -1,11 +1,26 @@
 """Auth endpoints and dependencies: register, login, logout, current user.
 
-The session token lives in an HttpOnly, Secure, SameSite=Lax cookie, so it
-is inaccessible to JS and not sent on cross-site navigations. The CSRF
-token lives in a separate, non-HttpOnly cookie (readable by frontend JS)
-and must be echoed back in the X-CSRF-Token header on every mutating
-request (double-submit pattern) — see require_csrf, used by every
-state-changing endpoint in this app.
+The session token lives in an HttpOnly, Secure, SameSite=Strict cookie, so
+it is inaccessible to JS and never sent on any cross-site request, top-level
+navigation included (Strict is safe here: the app has no email-link or
+third-party-redirect flow that would need Lax). The CSRF token lives in a
+separate, non-HttpOnly cookie (readable by frontend JS) and must be echoed
+back in the X-CSRF-Token header on every mutating request (double-submit
+pattern) — see require_csrf, used by every state-changing endpoint in this
+app except /login and /register themselves.
+
+Why login/register don't need an explicit CSRF token: classic "login CSRF"
+(tricking a victim's browser into logging into an attacker's account) needs
+a cross-site request that (a) the browser will actually send and (b) the
+server will accept. Both endpoints only accept application/json bodies, so
+a plain cross-site <form> POST (which can only send
+application/x-www-form-urlencoded, multipart/form-data, or text/plain)
+fails Pydantic validation before any session is created. A cross-site
+fetch()/XHR with a JSON body is a CORS "non-simple" request, which requires
+a preflight the browser only allows through if the origin is in
+CORS_ALLOWED_ORIGINS — anything else is blocked before the real request is
+even sent. So the JSON-only body plus the explicit CORS allowlist already
+close this vector without a pre-session CSRF token.
 """
 
 from __future__ import annotations
@@ -65,7 +80,7 @@ def _set_auth_cookies(response: Response, token: str, csrf_token: str, expires_a
         token,
         httponly=True,
         secure=settings.session_cookie_secure,
-        samesite="lax",
+        samesite=settings.session_cookie_samesite,
         max_age=max_age,
     )
     response.set_cookie(
@@ -73,7 +88,7 @@ def _set_auth_cookies(response: Response, token: str, csrf_token: str, expires_a
         csrf_token,
         httponly=False,
         secure=settings.session_cookie_secure,
-        samesite="lax",
+        samesite=settings.session_cookie_samesite,
         max_age=max_age,
     )
 
