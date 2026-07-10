@@ -184,43 +184,57 @@ def calculate_duty_cycle(payload: DutyCycleRequestSchema) -> DutyCycleResponseSc
     return _duty_cycle_response_from_result(result)
 
 
-@router.post("/validate-candidate", response_model=ValidateCandidateResponseSchema)
-def validate_candidate(payload: ValidateCandidateRequestSchema) -> ValidateCandidateResponseSchema:
-    use_case = ValidateCandidate()
-    request = ValidateCandidateRequest(
-        duty_cycle=_duty_cycle_request_from_payload(payload),
-        motor=MotorCandidate(
-            rated_power_kw=payload.motor.rated_power_kw,
-            rated_speed_rpm=payload.motor.rated_speed_rpm,
-            rated_voltage_v=payload.motor.rated_voltage_v,
-            power_factor=payload.motor.power_factor,
-            efficiency=payload.motor.efficiency,
-            nameplate_frequency_hz=payload.motor.nameplate_frequency_hz,
-            breakdown_torque_pu=payload.motor.breakdown_torque_pu,
-            breakdown_torque_nm=payload.motor.breakdown_torque_nm,
-            max_mechanical_torque_pu=payload.motor.max_mechanical_torque_pu,
-            max_mechanical_torque_nm=payload.motor.max_mechanical_torque_nm,
-            no_load_current_a=payload.motor.no_load_current_a,
-            rotor_inertia_kgm2=payload.motor.rotor_inertia_kgm2,
-        ),
-        motor_target_frequency_hz=payload.motor_target_frequency_hz,
-        drive=(
-            DriveCandidate(
-                rated_current_a=payload.drive.rated_current_a,
-                overload_factor=payload.drive.overload_factor,
-                overload_duration_s=payload.drive.overload_duration_s,
-                rated_voltage_v=payload.drive.rated_voltage_v,
-            )
-            if payload.drive is not None
-            else None
-        ),
+def _motor_candidate_from_payload(motor_payload) -> MotorCandidate:
+    return MotorCandidate(
+        rated_power_kw=motor_payload.rated_power_kw,
+        rated_speed_rpm=motor_payload.rated_speed_rpm,
+        rated_voltage_v=motor_payload.rated_voltage_v,
+        power_factor=motor_payload.power_factor,
+        efficiency=motor_payload.efficiency,
+        nameplate_frequency_hz=motor_payload.nameplate_frequency_hz,
+        breakdown_torque_pu=motor_payload.breakdown_torque_pu,
+        breakdown_torque_nm=motor_payload.breakdown_torque_nm,
+        max_mechanical_torque_pu=motor_payload.max_mechanical_torque_pu,
+        max_mechanical_torque_nm=motor_payload.max_mechanical_torque_nm,
+        no_load_current_a=motor_payload.no_load_current_a,
+        rotor_inertia_kgm2=motor_payload.rotor_inertia_kgm2,
     )
 
-    try:
-        result = use_case.execute(request)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+def _drive_candidate_from_payload(drive_payload) -> DriveCandidate | None:
+    if drive_payload is None:
+        return None
+    return DriveCandidate(
+        rated_current_a=drive_payload.rated_current_a,
+        overload_factor=drive_payload.overload_factor,
+        overload_duration_s=drive_payload.overload_duration_s,
+        rated_voltage_v=drive_payload.rated_voltage_v,
+    )
+
+
+def validate_candidate_request_from_payload(payload) -> ValidateCandidateRequest:
+    return ValidateCandidateRequest(
+        duty_cycle=_duty_cycle_request_from_payload(payload),
+        motor=_motor_candidate_from_payload(payload.motor),
+        motor_target_frequency_hz=payload.motor_target_frequency_hz,
+        drive=_drive_candidate_from_payload(payload.drive),
+    )
+
+
+def _condition_result_to_schema(condition) -> ConditionResultSchema:
+    return ConditionResultSchema(
+        label=condition.label,
+        verdict=condition.verdict,
+        required_value=condition.required_value,
+        available_value=condition.available_value,
+        margin=condition.margin,
+        formula_id=condition.formula_id,
+        assumptions=condition.assumptions,
+        standard_refs=condition.standard_refs,
+    )
+
+
+def validate_candidate_response_from_result(result) -> ValidateCandidateResponseSchema:
     return ValidateCandidateResponseSchema(
         requirement=_duty_cycle_response_from_result(result.requirement),
         resolved_motor=ResolvedMotorSchema(
@@ -246,14 +260,14 @@ def validate_candidate(payload: ValidateCandidateRequestSchema) -> ValidateCandi
     )
 
 
-def _condition_result_to_schema(condition) -> ConditionResultSchema:
-    return ConditionResultSchema(
-        label=condition.label,
-        verdict=condition.verdict,
-        required_value=condition.required_value,
-        available_value=condition.available_value,
-        margin=condition.margin,
-        formula_id=condition.formula_id,
-        assumptions=condition.assumptions,
-        standard_refs=condition.standard_refs,
-    )
+@router.post("/validate-candidate", response_model=ValidateCandidateResponseSchema)
+def validate_candidate(payload: ValidateCandidateRequestSchema) -> ValidateCandidateResponseSchema:
+    use_case = ValidateCandidate()
+    request = validate_candidate_request_from_payload(payload)
+
+    try:
+        result = use_case.execute(request)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    return validate_candidate_response_from_result(result)

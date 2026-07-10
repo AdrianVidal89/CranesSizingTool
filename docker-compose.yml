@@ -1,11 +1,34 @@
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      # Dev-only credentials, never used outside local preview.
+      POSTGRES_USER: cranes
+      POSTGRES_PASSWORD: cranes_dev_password
+      POSTGRES_DB: cranes_sizing
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cranes"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
     expose:
       - "8000"
     environment:
       CORS_ALLOWED_ORIGINS: "http://localhost:8080"
+      DATABASE_URL: "postgresql+psycopg://cranes:cranes_dev_password@db:5432/cranes_sizing"
+      # Dev-only placeholders — override both for any real deployment.
+      FIELD_ENCRYPTION_SECRET: "INSECURE-DEV-ONLY-CHANGE-ME"
+      SESSION_COOKIE_SECURE: "false" # local preview is plain HTTP, not HTTPS
     restart: unless-stopped
 
   frontend:
@@ -32,3 +55,4 @@ services:
 
 volumes:
   frontend_dist:
+  db_data:
