@@ -17,6 +17,27 @@ import {
   type ValidateCandidateResult,
 } from './api'
 
+function BrandMark() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M4 6h16M6 6v13M18 6v13M11 9h2v3h-2z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12 12v5m-2.2-1.6c0 1.6 4.4 1.6 4.4 0"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 const DEFAULT_INPUT: TravelRequirementInput = {
   mass_dead_kg: 800,
   mass_load_kg: 5000,
@@ -275,61 +296,79 @@ function App() {
   }
 
   return (
-    <main className="page">
-      <div className="auth-bar">
-        {user ? (
-          <p className="subtitle">
-            Logged in as {user.email}{' '}
-            <button type="button" onClick={handleLogout}>
-              Log out
-            </button>
-          </p>
-        ) : (
-          <form onSubmit={handleAuthSubmit} className="form auth-form">
-            <label className="field">
-              <span>Email</span>
-              <input
-                type="email"
-                value={authEmail}
-                onChange={(e) => setAuthEmail(e.target.value)}
-                required
-              />
-            </label>
-            <label className="field">
-              <span>Password</span>
-              <input
-                type="password"
-                minLength={8}
-                value={authPassword}
-                onChange={(e) => setAuthPassword(e.target.value)}
-                required
-              />
-            </label>
-            <label className="field">
-              <span>&nbsp;</span>
-              <select
-                value={authMode}
-                onChange={(e) => setAuthMode(e.target.value as 'login' | 'register')}
-              >
-                <option value="login">Log in</option>
-                <option value="register">Register</option>
-              </select>
-            </label>
-            <button type="submit" disabled={authLoading}>
-              {authLoading ? 'Please wait…' : authMode === 'login' ? 'Log in' : 'Register'}
-            </button>
-          </form>
-        )}
+    <div className="app">
+      <header className="app-header">
+        <div className="brand">
+          <span className="brand-mark">
+            <BrandMark />
+          </span>
+          <div className="brand-text">
+            <span className="brand-title">Cranes Sizing Platform</span>
+            <span className="brand-tagline">Manufacturer-neutral drive sizing</span>
+          </div>
+        </div>
+        <div className="header-auth">
+          {user ? (
+            <div className="user-chip">
+              <span>
+                Signed in as <strong>{user.email}</strong>
+              </span>
+              <button type="button" onClick={handleLogout}>
+                Log out
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleAuthSubmit} className="form auth-form">
+              <label className="field">
+                <span>Email</span>
+                <input
+                  type="email"
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  required
+                />
+              </label>
+              <label className="field">
+                <span>Password</span>
+                <input
+                  type="password"
+                  minLength={8}
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  required
+                />
+              </label>
+              <label className="field">
+                <span>&nbsp;</span>
+                <select
+                  value={authMode}
+                  onChange={(e) => setAuthMode(e.target.value as 'login' | 'register')}
+                >
+                  <option value="login">Log in</option>
+                  <option value="register">Register</option>
+                </select>
+              </label>
+              <button type="submit" disabled={authLoading}>
+                {authLoading ? 'Please wait…' : authMode === 'login' ? 'Log in' : 'Register'}
+              </button>
+            </form>
+          )}
+        </div>
+      </header>
+
+      <main className="page">
         {authError && <p className="error">{authError}</p>}
-      </div>
 
-      <h1>Cranes Sizing Platform</h1>
-      <p className="subtitle">
-        Travel requirement (Module 1 — MECH.TRAVEL). Manufacturer-agnostic: this
-        computes what the mechanism needs, not which motor to use.
-      </p>
+        <section className="hero">
+          <p className="eyebrow">Module 1 · MECH.TRAVEL</p>
+          <h1>Travel requirement</h1>
+          <p className="subtitle">
+            Agnostic of any specific motor: this computes what the mechanism needs, not
+            which motor to use.
+          </p>
+        </section>
 
-      <form onSubmit={handleSubmit} className="form">
+        <form onSubmit={handleSubmit} className="form">
         {FIELDS.map((field) => (
           <label key={field.key} className="field">
             <span>
@@ -1016,8 +1055,14 @@ function App() {
         </section>
       )}
 
-      <SavePanel user={user} calculationInput={lastValidatedInput} />
-    </main>
+        <SavePanel user={user} calculationInput={lastValidatedInput} />
+      </main>
+
+      <footer className="app-footer">
+        Manufacturer-neutral · Runs entirely on your own infrastructure · No tracking, no
+        telemetry.
+      </footer>
+    </div>
   )
 }
 
