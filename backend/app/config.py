@@ -31,7 +31,25 @@ class Settings(BaseSettings):
     # HTTP development; must be True in any real deployment.
     session_cookie_secure: bool = True
 
+    # "strict" by default (CLAUDE.md security checklist / ARCHITECTURE.md
+    # section 7). The frontend never needs the cookie sent on a cross-site
+    # top-level navigation (there is no email-link or third-party-redirect
+    # flow into the app), so Strict is safe and is the more defensive
+    # choice. Exposed as a setting only in case a future flow genuinely
+    # needs Lax; document the reason here if it's ever changed.
+    session_cookie_samesite: str = "strict"
+
     session_ttl_hours: int = 24 * 7
+
+    # "production" disables the interactive API docs (/docs, /redoc) —
+    # their bundled Swagger/Redoc UI loads third-party CDN scripts, which
+    # would either violate our CSP or need it relaxed. Reducing attack
+    # surface in production is simpler than carving out CSP exceptions.
+    environment: str = "development"
+
+    @property
+    def is_production(self) -> bool:
+        return self.environment == "production"
 
     @property
     def cors_allowed_origins_list(self) -> list[str]:

@@ -4,53 +4,43 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.interfaces.schemas.mechanics import MechanicsRequestFieldsSchema
 
-class DutyCycleRequestSchema(BaseModel):
-    # Mechanics inputs (same shape as TravelRequirementRequestSchema; the
-    # duty cycle is computed on top of the travel requirement).
-    mass_dead_kg: float = Field(
-        ..., gt=0, description="Dead mass of the gantry/trolley mechanism, kg"
-    )
-    mass_load_kg: float = Field(..., ge=0, description="Mass of the load (SWL), kg")
-    mass_tool_kg: float = Field(..., ge=0, description="Mass of the tool/spreader, kg")
-    velocity_ms: float = Field(..., gt=0, description="Nominal travel speed, m/s")
-    accel_time_s: float = Field(..., gt=0, description="Acceleration ramp time, s")
-    wheel_diameter_m: float = Field(..., gt=0, description="Wheel diameter, m")
-    gear_ratio: float = Field(..., gt=0, description="Gearbox reduction ratio")
-    efficiency: float = Field(
-        ..., gt=0, le=1, description="Mechanical efficiency (gearbox + transmission)"
-    )
-    motors_count: int = Field(
-        ..., gt=0, description="Number of motors/drives for this movement"
-    )
-    rolling_coeff: float = Field(..., gt=0, description="Rolling resistance coefficient")
 
-    # Duty cycle inputs
-    distance_m: float = Field(..., gt=0, description="Movement travel distance, m")
+class DutyCycleRequestFieldsSchema(MechanicsRequestFieldsSchema):
+    """Mechanics + duty-cycle input fields, shared by the duty-cycle and
+    validate-candidate request schemas (see mechanics.py docstring for why
+    this is a base class rather than three duplicated copies)."""
+
+    distance_m: float = Field(..., gt=0, le=100_000, description="Movement travel distance, m")
     decel_time_s: float | None = Field(
-        None, gt=0, description="Deceleration ramp time, s (defaults to accel_time_s)"
+        None, gt=0, le=300, description="Deceleration ramp time, s (defaults to accel_time_s)"
     )
     duty_factor_pct: float | None = Field(
         None, gt=0, le=100, description="Target cyclic duration factor %ED"
     )
     starts_per_hour: float | None = Field(
-        None, gt=0, description="Target starts per hour"
+        None, gt=0, le=100_000, description="Target starts per hour"
     )
     cooling_factor: float = Field(
         0.5, ge=0, le=1, description="k_f, standstill cooling factor (0=none, 1=full)"
     )
     mechanism_group: str | None = Field(
-        None, description="ISO 4301-1 / FEM 9.511 mechanism group, e.g. 'M5'"
+        None, max_length=50, description="ISO 4301-1 / FEM 9.511 mechanism group, e.g. 'M5'"
     )
 
     @model_validator(mode="after")
-    def check_duty_regime_exclusive(self) -> "DutyCycleRequestSchema":
+    def check_duty_regime_exclusive(self) -> "DutyCycleRequestFieldsSchema":
         provided = (self.duty_factor_pct is not None, self.starts_per_hour is not None)
         if sum(provided) != 1:
             raise ValueError(
                 "Exactly one of duty_factor_pct or starts_per_hour must be provided"
             )
         return self
+
+
+class DutyCycleRequestSchema(DutyCycleRequestFieldsSchema):
+    pass
 
 
 class MotionProfileSchema(BaseModel):
