@@ -35,6 +35,18 @@ server {
     ssl_session_cache shared:SSL:10m;
     ssl_session_timeout 1d;
 
+    # Re-resolve the backend container's IP through Docker's embedded DNS
+    # on every request (cached 10s) instead of once at nginx startup.
+    # Without this, recreating the backend container (every deploy) leaves
+    # nginx proxying to the old container IP -> 502 on every /api call
+    # until nginx itself is restarted. Using a variable in proxy_pass is
+    # what forces the runtime lookup; the original request URI is passed
+    # through unchanged, which matches the location prefixes below.
+    # ($backend_upstream is an nginx variable, not a container env var,
+    # so envsubst leaves it alone — same rule as $host etc. above.)
+    resolver 127.0.0.11 valid=10s ipv6=off;
+    set $backend_upstream backend:8000;
+
     # HSTS — only ever sent over an actual TLS connection (this server
     # block), never on the plain-HTTP redirect block above.
     add_header Strict-Transport-Security "max-age=15552000; includeSubDomains" always;
@@ -59,7 +71,7 @@ server {
 
     location /api/auth/ {
         limit_req zone=auth_rl burst=10 nodelay;
-        proxy_pass http://backend:8000/api/auth/;
+        proxy_pass http://$backend_upstream;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -68,7 +80,7 @@ server {
 
     location /api/ {
         limit_req zone=calc_rl burst=20 nodelay;
-        proxy_pass http://backend:8000/api/;
+        proxy_pass http://$backend_upstream;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -76,7 +88,7 @@ server {
     }
 
     location /health {
-        proxy_pass http://backend:8000/health;
+        proxy_pass http://$backend_upstream;
         proxy_set_header Host $host;
     }
 
