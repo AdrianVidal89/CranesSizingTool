@@ -50,6 +50,12 @@ services:
       SESSION_COOKIE_SECURE: "true"
       SESSION_COOKIE_SAMESITE: "strict"
       ENVIRONMENT: "production"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
     restart: unless-stopped
     deploy:
       resources:
@@ -77,7 +83,7 @@ services:
     image: nginx:1.27-alpine
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy
       frontend:
         condition: service_completed_successfully
     ports:

@@ -161,8 +161,15 @@ if ! compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm backend alembic 
     exit 1
 fi
 
+log "Building the frontend bundle (kept isolated from backend/db startup — see"
+log "docs/NAS_DEPLOYMENT.md; running it at the same time as Postgres/Uvicorn"
+log "starting up can starve this NAS's limited RAM and leave the backend"
+log "crash-looping, which shows up as 502 Bad Gateway on every calculation)..."
+compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build frontend
+compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up frontend
+
 log "Deploying the new version..."
-compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build
+compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d db backend nginx backup
 
 # `up -d` does not recreate nginx when only the content of its
 # bind-mounted config changed, and a non-restarted nginx keeps proxying
@@ -179,8 +186,9 @@ PORT="${PORT:-8090}"
 i=0
 until curl -fsS "http://localhost:${PORT}/health" >/dev/null 2>&1; do
     i=$((i + 1))
-    if [ "$i" -ge 20 ]; then
-        log "Health check did not pass after 60s."
+    if [ "$i" -ge 40 ]; then
+        log "Health check did not pass after 120s."
+        log "Run 'docker compose --env-file $ENV_FILE -f $COMPOSE_FILE logs backend' to see why."
         log "Run 'scripts/deploy-nas.sh --rollback' to revert to the previous release."
         fail "Deploy finished but the health check failed — investigate before trusting this deploy."
     fi
