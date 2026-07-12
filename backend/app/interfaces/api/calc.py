@@ -8,6 +8,10 @@ from app.application.calculate_duty_cycle import (
     CalculateDutyCycle,
     CalculateDutyCycleRequest,
 )
+from app.application.calculate_hoist_requirement import (
+    CalculateHoistRequirement,
+    HoistRequirementRequest,
+)
 from app.application.calculate_travel_requirement import (
     CalculateTravelRequirement,
     TravelRequirementRequest,
@@ -25,6 +29,10 @@ from app.interfaces.schemas.duty_cycle import (
     MotionProfileSchema,
     PhaseEnergySchema,
     ThermalRmsSchema,
+)
+from app.interfaces.schemas.hoist import (
+    HoistRequirementRequestSchema,
+    HoistRequirementResponseSchema,
 )
 from app.interfaces.schemas.travel import (
     FormulaOutputSchema,
@@ -65,6 +73,46 @@ def calculate_travel_requirement(
         required_speed_rpm=result.required_speed_rpm,
         steady_torque_nm=result.steady_torque_nm,
         dynamic_torque_nm=result.dynamic_torque_nm,
+        components=tuple(
+            FormulaOutputSchema(
+                label=c.label,
+                value=c.value,
+                unit=c.unit,
+                formula_id=c.formula_id,
+                assumptions=c.assumptions,
+                standard_refs=c.standard_refs,
+            )
+            for c in result.components
+        ),
+    )
+
+
+@router.post("/hoist", response_model=HoistRequirementResponseSchema)
+def calculate_hoist_requirement(
+    payload: HoistRequirementRequestSchema,
+) -> HoistRequirementResponseSchema:
+    use_case = CalculateHoistRequirement()
+    result = use_case.execute(
+        HoistRequirementRequest(
+            mass_load_kg=payload.mass_load_kg,
+            mass_tool_kg=payload.mass_tool_kg,
+            velocity_ms=payload.velocity_ms,
+            accel_time_s=payload.accel_time_s,
+            drum_diameter_m=payload.drum_diameter_m,
+            reeving_factor=payload.reeving_factor,
+            gear_ratio=payload.gear_ratio,
+            efficiency=payload.efficiency,
+            motor_inertia_kgm2=payload.motor_inertia_kgm2,
+            brake_inertia_kgm2=payload.brake_inertia_kgm2,
+        )
+    )
+    return HoistRequirementResponseSchema(
+        required_torque_nm=result.required_torque_nm,
+        required_speed_rpm=result.required_speed_rpm,
+        static_lifting_torque_nm=result.static_lifting_torque_nm,
+        static_lowering_torque_nm=result.static_lowering_torque_nm,
+        rotor_dynamic_torque_nm=result.rotor_dynamic_torque_nm,
+        load_dynamic_torque_nm=result.load_dynamic_torque_nm,
         components=tuple(
             FormulaOutputSchema(
                 label=c.label,

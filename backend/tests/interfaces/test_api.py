@@ -36,6 +36,37 @@ def test_calculate_travel_requirement():
     assert len(body["components"]) == 5
 
 
+HOIST_PAYLOAD = {
+    "mass_load_kg": 5000.0,
+    "mass_tool_kg": 200.0,
+    "velocity_ms": 0.2,
+    "accel_time_s": 1.5,
+    "drum_diameter_m": 0.4,
+    "reeving_factor": 2.0,
+    "gear_ratio": 25.0,
+    "efficiency": 0.92,
+    "motor_inertia_kgm2": 0.05,
+    "brake_inertia_kgm2": 0.01,
+}
+
+
+def test_calculate_hoist_requirement():
+    response = client.post("/api/calc/hoist", json=HOIST_PAYLOAD)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["required_torque_nm"] == 226.49
+    assert body["required_speed_rpm"] == 477.46
+    assert body["static_lifting_torque_nm"] == 221.72
+    assert body["static_lowering_torque_nm"] == 187.66
+    assert len(body["components"]) == 6
+
+
+def test_calculate_hoist_requirement_rejects_zero_hook_load():
+    payload = {**HOIST_PAYLOAD, "mass_load_kg": 0.0, "mass_tool_kg": 0.0}
+    response = client.post("/api/calc/hoist", json=payload)
+    assert response.status_code == 422
+
+
 DUTY_CYCLE_PAYLOAD = {
     "mass_dead_kg": 800.0,
     "mass_load_kg": 5000.0,

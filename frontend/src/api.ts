@@ -28,6 +28,29 @@ export interface TravelRequirementInput {
   rolling_coeff: number
 }
 
+export interface HoistRequirementInput {
+  mass_load_kg: number
+  mass_tool_kg: number
+  velocity_ms: number
+  accel_time_s: number
+  drum_diameter_m: number
+  reeving_factor: number
+  gear_ratio: number
+  efficiency: number
+  motor_inertia_kgm2: number
+  brake_inertia_kgm2: number
+}
+
+export interface HoistRequirementResult {
+  required_torque_nm: number
+  required_speed_rpm: number
+  static_lifting_torque_nm: number
+  static_lowering_torque_nm: number
+  rotor_dynamic_torque_nm: number
+  load_dynamic_torque_nm: number
+  components: FormulaOutput[]
+}
+
 export interface DutyCycleInput extends TravelRequirementInput {
   distance_m: number
   decel_time_s: number | null
@@ -184,6 +207,12 @@ export function calculateTravelRequirement(
   return postJson<TravelRequirementResult>('/api/calc/travel', input)
 }
 
+export function calculateHoistRequirement(
+  input: HoistRequirementInput,
+): Promise<HoistRequirementResult> {
+  return postJson<HoistRequirementResult>('/api/calc/hoist', input)
+}
+
 export function calculateDutyCycle(input: DutyCycleInput): Promise<DutyCycleResult> {
   return postJson<DutyCycleResult>('/api/calc/duty-cycle', input)
 }
@@ -204,11 +233,31 @@ export interface AuthUser {
   email: string
 }
 
+export type MovementKind = 'hoist' | 'travel'
+
+export interface MovementCreateInput {
+  kind: MovementKind
+  name: string
+}
+
+export interface Movement {
+  id: string
+  kind: MovementKind
+  name: string
+}
+
 export interface Project {
   id: string
   name: string
+  movements: Movement[]
   created_at: string
   updated_at: string
+}
+
+export interface ProjectCreateInput {
+  name: string
+  crane_configuration_name?: string
+  movements: MovementCreateInput[]
 }
 
 export interface CalculationRunSummary {
@@ -296,10 +345,10 @@ export async function fetchCurrentUser(): Promise<AuthUser | null> {
   return response.json() as Promise<AuthUser>
 }
 
-export function createProject(name: string): Promise<Project> {
+export function createProject(input: ProjectCreateInput): Promise<Project> {
   return authFetch<Project>('/api/projects', {
     method: 'POST',
-    body: JSON.stringify({ name }),
+    body: JSON.stringify(input),
     csrf: true,
   })
 }

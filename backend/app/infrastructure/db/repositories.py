@@ -180,6 +180,15 @@ class SqlAlchemyCraneConfigurationRepository:
         self._db.flush()
         return _crane_configuration_to_dto(row)
 
+    def list_by_project(self, project_id: UUID) -> list[CraneConfigurationDTO]:
+        rows = (
+            self._db.query(CraneConfiguration)
+            .filter_by(project_id=project_id)
+            .order_by(CraneConfiguration.created_at)
+            .all()
+        )
+        return [_crane_configuration_to_dto(row) for row in rows]
+
 
 class SqlAlchemyMovementRepository:
     def __init__(self, db: Session) -> None:
@@ -190,6 +199,15 @@ class SqlAlchemyMovementRepository:
         self._db.add(row)
         self._db.flush()
         return _movement_to_dto(row)
+
+    def list_by_crane_configuration(self, crane_configuration_id: UUID) -> list[MovementDTO]:
+        rows = (
+            self._db.query(Movement)
+            .filter_by(crane_configuration_id=crane_configuration_id)
+            .order_by(Movement.created_at)
+            .all()
+        )
+        return [_movement_to_dto(row) for row in rows]
 
 
 class SqlAlchemyCalculationRunRepository:

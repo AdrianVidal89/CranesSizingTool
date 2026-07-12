@@ -14,15 +14,25 @@ import {
 interface SavePanelProps {
   user: AuthUser | null
   calculationInput: ValidateCandidateInput | null
+  /** Project created in the setup step (null when working locally). */
+  defaultProjectId?: string | null
+  defaultProjectName?: string
+  defaultMovementName?: string
 }
 
-function SavePanel({ user, calculationInput }: SavePanelProps) {
+function SavePanel({
+  user,
+  calculationInput,
+  defaultProjectId = null,
+  defaultProjectName = '',
+  defaultMovementName = 'Trolley travel',
+}: SavePanelProps) {
   const [projects, setProjects] = useState<Project[]>([])
   const [runs, setRuns] = useState<CalculationRunSummary[]>([])
-  const [projectChoice, setProjectChoice] = useState<string>('new')
-  const [newProjectName, setNewProjectName] = useState('')
+  const [projectChoice, setProjectChoice] = useState<string>(defaultProjectId ?? 'new')
+  const [newProjectName, setNewProjectName] = useState(defaultProjectName)
   const [craneConfigurationName, setCraneConfigurationName] = useState('Crane configuration')
-  const [movementName, setMovementName] = useState('Trolley travel')
+  const [movementName, setMovementName] = useState(defaultMovementName)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saveSuccess, setSaveSuccess] = useState(false)

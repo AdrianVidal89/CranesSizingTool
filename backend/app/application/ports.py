@@ -45,17 +45,22 @@ class ProjectRepository(Protocol):
 
 class CraneConfigurationRepository(Protocol):
     """Never queried directly by owner: crane configurations are only ever
-    created transactionally right after the parent Project's ownership has
-    already been verified (see application/save_calculation_run.py)."""
+    created or listed right after the parent Project's ownership has
+    already been verified (see application/save_calculation_run.py and
+    interfaces/api/projects.py)."""
 
     def create(self, project_id: UUID, name: str) -> CraneConfigurationDTO: ...
+    def list_by_project(self, project_id: UUID) -> list[CraneConfigurationDTO]: ...
 
 
 class MovementRepository(Protocol):
-    """Same note as CraneConfigurationRepository: created transactionally
-    under an already-ownership-verified crane configuration."""
+    """Same note as CraneConfigurationRepository: created or listed under an
+    already-ownership-verified crane configuration."""
 
     def create(self, crane_configuration_id: UUID, kind: str, name: str) -> MovementDTO: ...
+    def list_by_crane_configuration(
+        self, crane_configuration_id: UUID
+    ) -> list[MovementDTO]: ...
 
 
 class CalculationRunRepository(Protocol):
