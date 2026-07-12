@@ -42,8 +42,16 @@ fail() { echo "[deploy] ERROR: $*" >&2; exit 1; }
 compose() {
     if docker compose version >/dev/null 2>&1; then
         docker compose "$@"
-    else
+    elif command -v docker-compose >/dev/null 2>&1; then
         docker-compose "$@"
+    elif [ -x "$HOME/bin/docker-compose" ]; then
+        # Falls back here even if $HOME/bin isn't on PATH in whatever
+        # shell/context invoked this script (a common gap right after a
+        # manual `curl`-installed docker-compose, since `export PATH=...`
+        # only lasts the session it was run in).
+        "$HOME/bin/docker-compose" "$@"
+    else
+        fail "Neither 'docker compose' nor 'docker-compose' was found (checked PATH and \$HOME/bin/docker-compose)."
     fi
 }
 
@@ -134,6 +142,14 @@ else
 fi
 
 cd "$REPO_DIR"
+
+if [ ! -f "$REPO_DIR/scripts/deploy-nas.sh" ]; then
+    log "WARNING: scripts/deploy-nas.sh is missing after syncing — the branch"
+    log "you're deploying from doesn't include this script yet. This run will"
+    log "still finish (it's already running from a safe temp copy), but the"
+    log "NEXT invocation of 'scripts/deploy-nas.sh' will fail with"
+    log "'No such file or directory' until you restore it."
+fi
 
 log "Building the backend image..."
 compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build backend
