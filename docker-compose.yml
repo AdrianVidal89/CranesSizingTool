@@ -29,6 +29,12 @@ services:
       # Dev-only placeholders — override both for any real deployment.
       FIELD_ENCRYPTION_SECRET: "INSECURE-DEV-ONLY-CHANGE-ME"
       SESSION_COOKIE_SECURE: "false" # local preview is plain HTTP, not HTTPS
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
     restart: unless-stopped
 
   frontend:
@@ -43,7 +49,7 @@ services:
     image: nginx:1.27-alpine
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy
       frontend:
         condition: service_completed_successfully
     ports:

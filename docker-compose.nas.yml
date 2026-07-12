@@ -37,7 +37,11 @@ services:
   backend:
     build:
       context: ./backend
-    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"
+    # Single worker: the TS-253D has 3.76 GB total RAM shared with
+    # Postgres, Nginx and the frontend build — a second Uvicorn worker
+    # buys no real throughput for a LAN-only tool but doubles the app's
+    # memory footprint, which is the scarce resource here.
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"
     depends_on:
       db:
         condition: service_healthy
@@ -50,6 +54,14 @@ services:
       SESSION_COOKIE_SECURE: "false"
       SESSION_COOKIE_SAMESITE: "strict"
       ENVIRONMENT: "production"
+    healthcheck:
+      # No curl in the python:3.12-slim image — urllib avoids adding a
+      # dependency just for this.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
     restart: unless-stopped
     deploy:
       resources:
@@ -76,7 +88,7 @@ services:
     image: nginx:1.27-alpine
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy
       frontend:
         condition: service_completed_successfully
     ports:

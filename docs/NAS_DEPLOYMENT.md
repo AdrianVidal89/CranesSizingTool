@@ -47,8 +47,21 @@ cp .env.nas.example .env.nas
 with Docker installed):
 
 ```sh
-docker compose --env-file .env.nas -f docker-compose.nas.yml up -d --build
+docker compose --env-file .env.nas -f docker-compose.nas.yml build
+docker compose --env-file .env.nas -f docker-compose.nas.yml up frontend
+docker compose --env-file .env.nas -f docker-compose.nas.yml up -d db backend nginx backup
 ```
+
+Build and bring the frontend up on its own **before** the rest of the
+stack, rather than a single `up -d --build`: `npm run build` (the
+frontend container's actual build step, see `frontend/Dockerfile`) runs
+when the container *starts*, not when its image is built, so a combined
+command runs it at the same time Postgres and Uvicorn are starting.
+On a NAS this size (3.76 GB RAM on a TS-253D) that contention has been
+observed to starve the box and leave the backend crash-looping —
+surfacing later as "502 Bad Gateway" on every calculation and a health
+check that never passes. `scripts/deploy-nas.sh` (section below) already
+does this in the right order.
 
 Then open `http://<nas-ip>:<NAS_HTTP_PORT>/` (default port 8090) from
 any device on your LAN.
@@ -85,7 +98,10 @@ scripts/deploy-nas.sh              # deploy the latest commit
 scripts/deploy-nas.sh --rollback   # revert to the previous release if something's wrong
 ```
 
-(If you did install `git` via Entware, `git pull && docker compose ... up -d --build` works just as well — `scripts/deploy-nas.sh` exists for the more common case of not having `git` on the NAS at all.)
+(If you did install `git` via Entware, `git pull` followed by the three
+`docker compose` commands from step 3 works just as well —
+`scripts/deploy-nas.sh` exists for the more common case of not having
+`git` on the NAS at all.)
 
 ## 5. Backups
 
