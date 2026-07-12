@@ -19,5 +19,8 @@ dist/
 # Local Postgres backup dumps (production backup service writes here)
 backups/
 
+# Local deploy state (scripts/deploy-nas.sh)
+.deployed_sha
+
 # OS
 .DS_Store

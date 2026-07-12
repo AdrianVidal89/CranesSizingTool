@@ -69,12 +69,23 @@ docker compose --env-file .env.nas -f docker-compose.nas.yml logs -f backend
 docker compose --env-file .env.nas -f docker-compose.nas.yml down
 ```
 
-**Updating** after a `git pull`:
+**Updating**: most QNAP firmware doesn't ship `git`, so use
+`scripts/deploy-nas.sh` instead — it fetches the latest commit on `main`
+straight from GitHub (REST API + tarball, no `git` needed), verifies the
+download, keeps your `.env.nas` and `backups/` untouched, applies
+pending database migrations as an explicit step *before* touching the
+running app (so a bad migration never reaches it), then rebuilds and
+restarts. It also keeps exactly one previous release for instant
+rollback.
 
 ```sh
-git pull
-docker compose --env-file .env.nas -f docker-compose.nas.yml up -d --build
+cd ~/CranesSizingTool
+scripts/deploy-nas.sh --dry-run    # preview what would change, touches nothing
+scripts/deploy-nas.sh              # deploy the latest commit
+scripts/deploy-nas.sh --rollback   # revert to the previous release if something's wrong
 ```
+
+(If you did install `git` via Entware, `git pull && docker compose ... up -d --build` works just as well — `scripts/deploy-nas.sh` exists for the more common case of not having `git` on the NAS at all.)
 
 ## 5. Backups
 
