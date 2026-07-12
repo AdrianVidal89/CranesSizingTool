@@ -519,6 +519,183 @@ code {
   border-radius: 4px;
 }
 
+/* ---------- Project setup (step 1) ---------- */
+
+.setup-form .field-wide {
+  grid-column: 1 / -1;
+}
+
+.field-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+/* ---------- Project bar + movement tabs ---------- */
+
+.project-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.project-bar-info .eyebrow {
+  margin-bottom: 0.15rem;
+}
+
+.project-bar-info h1 {
+  margin: 0;
+}
+
+button.project-bar-action {
+  grid-column: auto;
+  background: transparent;
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  box-shadow: none;
+}
+
+button.project-bar-action:hover:not(:disabled) {
+  background: var(--color-bg-inset);
+  color: var(--color-text);
+}
+
+.movement-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+button.movement-tab {
+  grid-column: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  padding: 0.5rem 0.95rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: none;
+}
+
+button.movement-tab:hover:not(:disabled) {
+  background: var(--color-bg-inset);
+  color: var(--color-text);
+}
+
+button.movement-tab.active {
+  color: var(--color-accent-strong);
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent);
+}
+
+.movement-tab-kind {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+/* ---------- Parameter info tooltips ---------- */
+
+.infotip {
+  position: relative;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+button.infotip-button {
+  grid-column: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.05rem;
+  height: 1.05rem;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  font-style: italic;
+  line-height: 1;
+  color: var(--color-accent-strong);
+  background: var(--color-accent-soft);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 45%, transparent);
+  border-radius: 999px;
+  box-shadow: none;
+  cursor: help;
+}
+
+button.infotip-button:hover:not(:disabled),
+button.infotip-button[aria-expanded='true'] {
+  color: var(--color-accent-contrast);
+  background: var(--color-accent);
+}
+
+.infotip-popover {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 0.45rem);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  width: 264px;
+  max-width: 78vw;
+  padding: 0.8rem 0.9rem;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  cursor: default;
+}
+
+.infotip-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.infotip-body {
+  font-size: 0.8rem;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  white-space: normal;
+}
+
+.infotip-figure {
+  display: block;
+  padding: 0.4rem 0.3rem 0.1rem;
+  color: var(--color-text-muted);
+  border-top: 1px dashed var(--color-border);
+}
+
+/* Keep the popover on-screen when the field sits near the viewport edge
+   (alignment class computed by InfoTip from the button's position). */
+.infotip-popover.align-left {
+  left: -0.4rem;
+  transform: none;
+}
+
+.infotip-popover.align-right {
+  left: auto;
+  right: -0.4rem;
+  transform: none;
+}
+
 /* ---------- Footer ---------- */
 
 .app-footer {
