@@ -164,6 +164,15 @@ fi
 log "Deploying the new version..."
 compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build
 
+# `up -d` does not recreate nginx when only the content of its
+# bind-mounted config changed, and a non-restarted nginx keeps proxying
+# to the previous backend container's now-dead IP -> 502 on every /api
+# call (see the resolver note in nginx/nas/default.conf). Restarting it
+# here makes every deploy pick up config changes and re-resolve the
+# backend, whichever nginx config version is currently mounted.
+log "Restarting nginx so it reloads its config and re-resolves the backend..."
+compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" restart nginx
+
 log "Waiting for the app to report healthy..."
 PORT="$(grep -E '^NAS_HTTP_PORT=' "$ENV_FILE" | cut -d= -f2)"
 PORT="${PORT:-8090}"
